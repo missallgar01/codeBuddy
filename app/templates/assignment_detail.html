@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>{{ assignment.title }}</h2>
+<div class="split">
+  <div class="card">
+    <h3>Task</h3>
+    <div>{{ description_html|safe }}</div>
+  </div>
+  <div class="card">
+    <h3>Code Editor</h3>
+    <div id="editor" style="height:60vh;border:1px solid #ccc;"></div>
+    <div style="margin-top:0.5rem;display:flex;gap:.5rem">
+      <button class="btn" id="runBtn">▶ Run</button>
+      {% if current_user.role == 'student' %}
+      <button class="btn" id="saveBtn">💾 Save draft</button>
+      <button class="btn primary" id="submitBtn">✅ Submit</button>
+      {% endif %}
+    </div>
+    <small id="saveStatus" style="color:#555"></small>
+    <pre id="output" style="background:#111;color:#0f0;padding:1rem;margin-top:1rem;height:20vh;overflow:auto;border-radius:8px;"></pre>
+  </div>
+</div>
+
+{% if current_user.role == 'student' and last_rows %}
+  <div class="card" style="margin-top:1rem">
+    <h3>Latest result</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>#</th><th>Call</th><th>Expected</th><th>Got</th><th>Result</th><th>Marks</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in last_rows %}
+          <tr>
+            <td>{{ r.index }}</td>
+            <td>{{ r.function }}({{ r.args|tojson }}{% if r.kwargs %}, {{ r.kwargs|tojson }}{% endif %})</td>
+            <td><code>{{ r.expected }}</code></td>
+            <td><code>{% if r.error %}error{% else %}{{ r.got }}{% endif %}</code></td>
+            <td style="font-size:1.1rem">{% if r.correct %}✅{% else %}❌{% endif %}{% if r.error %}<small> — {{ r.error }}</small>{% endif %}</td>
+            <td>{{ r.marks_awarded }}/{{ r.marks_available }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><th colspan="5" style="text-align:right">Auto total</th><th>{{ last_total }}/{{ last_max }}</th></tr>
+      </tfoot>
+    </table>
+  </div>
+{% endif %}
+
+{% if current_user.role == 'student' %}
+  <div class="card" style="margin-top:1rem">
+    <h3>Your grade</h3>
+    <p>Final: <strong>{{ (last_total or 0) + (last_rubric_total or 0) }}</strong> / {{ (last_max or 0) + (last_rubric_max or 0) }}</p>
+
+    {% if last_rubric_rows %}
+      <h4>Rubric (teacher-awarded)</h4>
+      <table class="table">
+        <thead><tr><th>#</th><th>Criterion</th><th>Max</th><th>Awarded</th></tr></thead>
+        <tbody>
+          {% for rr in last_rubric_rows %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ rr.label }}</td>
+            <td>{{ rr.max }}</td>
+            <td>{{ rr.awarded }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot><tr><th colspan="3" style="text-align:right">Rubric total</th><th>{{ last_rubric_total }}/{{ last_rubric_max }}</th></tr></tfoot>
+      </table>
+    {% else %}
+      <p>No rubric marks yet — your teacher may grade this soon.</p>
+    {% endif %}
+  </div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.49.0/min/vs/loader.js"></script>
+<script>
+require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.49.0/min/vs' }});
+require(['vs/editor/editor.main'], function () {
+  const starter = {{ assignment.starter_code | tojson }};
+  const editor = monaco.editor.create(document.getElementById('editor'), {
+    value: starter, language: 'python', theme: 'vs-dark', automaticLayout: true,
+  });
+  async function runCode() {
+    const code = editor.getValue();
+    const resp = await fetch('/run_code', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ code }) });
+    const data = await resp.json();
+    document.getElementById('output').textContent = data.error ? data.error : (data.output || '(no output)');
+  }
+  async function saveDraft() {
+    const code = editor.getValue();
+    const resp = await fetch('/assignments/{{ assignment.id }}/save_draft', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ code }) });
+    const data = await resp.json();
+    const el = document.getElementById('saveStatus');
+    if (data.ok) el.textContent = `Draft saved at ${new Date(data.saved_at).toLocaleString()}`; else el.textContent = 'Draft save failed';
+  }
+  async function submitCode() {
+    const form = new FormData();
+    form.append('code', editor.getValue());
+    await fetch('', { method: 'POST', body: form });
+    window.location.reload();
+  }
+  document.getElementById('runBtn')?.addEventListener('click', runCode);
+  document.getElementById('saveBtn')?.addEventListener('click', saveDraft);
+  document.getElementById('submitBtn')?.addEventListener('click', submitCode);
+  // autosave every 20s of inactivity
+  let t=null; editor.onDidChangeModelContent(()=>{ if(!document.getElementById('saveBtn')) return; clearTimeout(t); t=setTimeout(saveDraft,20000); });
+});
+</script>
+{% endblock %}

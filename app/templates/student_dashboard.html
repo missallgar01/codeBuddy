@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Join a class</h2>
+<form method="post" action="/classes/join" class="card" style="max-width:420px">
+  <label>Join code<br><input name="code" required /></label>
+  <button class="btn" type="submit" style="margin-top:.5rem">Join</button>
+  <p style="font-size:.9rem;color:#444;margin-top:.5rem">Ask your teacher for the invite code.</p>
+</form>
+
+<h2>Your classes</h2>
+{% for e in enrollments %}
+  <div class="card" style="margin-bottom:1rem">
+    <h3>{{ e.klass.name }}</h3>
+    <p>Assignments:</p>
+    <ul>
+      {% for ca in e.klass.class_assignments %}
+        <li><a href="/assignments/{{ ca.assignment.id }}">{{ ca.assignment.title }}</a></li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endfor %}
+{% endblock %}

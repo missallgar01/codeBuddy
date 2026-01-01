@@ -1,0 +1,16 @@
+<!doctype html>
+<html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="/static/style.css" />
+<title>Login</title></head>
+<body>
+  <div class="container">
+    <h1>Sign in</h1>
+    <form method="post" class="card" style="max-width:420px">
+      <label>Email or Username<br><input name="email" required style="width:100%" /></label><br><br>
+      <label>Password<br><input name="password" type="password" required style="width:100%" /></label><br><br>
+      <button class="btn primary" type="submit">Sign in</button>
+    </form>
+    <p style="margin-top:1rem">New student? <a href="/register">Create an account</a></p>
+    <p style="margin-top:.3rem">Teacher? <a href="/register-teacher">Register here</a> (invite token required)</p>
+  </div>
+</body></html>

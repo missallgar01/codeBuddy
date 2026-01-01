@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>All students</h2>
+<a class="btn" href="/students/create">+ Create student</a>
+<table class="table">
+  <thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Actions</th></tr></thead>
+  <tbody>
+    {% for s in students %}
+    <tr>
+      <td>{{ s.first_name or '' }} {{ s.last_name or '' }}</td>
+      <td>{{ s.username or '—' }}</td>
+      <td>{{ s.email }}</td>
+      <td><a class="btn" href="/students/{{ s.id }}/credentials.pdf">PDF login</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

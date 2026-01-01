@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>New assignment</h2>
+<form method="post" class="card" enctype="multipart/form-data">  <!-- keep enctype for future -->
+  <label>Title<br><input name="title" required style="width:100%" /></label><br>
+
+  <div style="display:flex; align-items:center; gap:.5rem; margin:.25rem 0;">
+    <strong>Task description</strong>
+    <input type="file" id="imgInput" accept="image/*" style="display:none" />
+    <button type="button" class="btn" id="insertImgBtn">Insert image…</button>
+    <small style="color:#555">Uploads insert <code>![](...)</code> at cursor</small>
+  </div>
+
+  <textarea id="desc" name="description" rows="8" style="width:100%"></textarea><br>
+
+  <label>Starter code (shown on the right pane)<br>
+    <textarea name="starter_code" rows="10" style="width:100%">def solve(x):
+    return x
+</textarea>
+  </label><br>
+
+  <label>Tests path (directory) — leave blank to use JSON mark scheme below<br>
+    <input name="tests_path" style="width:100%" />
+  </label><br>
+
+  <label>Mark scheme (JSON) — used if tests_path empty<br>
+    <textarea name="mark_scheme_json" rows="10" style="width:100%">{
+  "cases": [
+    {"function": "solve", "args": [1], "expected": 1, "marks": 1},
+    {"function": "solve", "args": [2], "expected": 2, "marks": 1}
+  ]
+}
+</textarea>
+  </label><br>
+
+  <button class="btn primary" type="submit">Create</button>
+</form>
+
+<script>
+const btn = document.getElementById('insertImgBtn');
+const input = document.getElementById('imgInput');
+const desc = document.getElementById('desc');
+
+btn.addEventListener('click', () => input.click());
+
+input.addEventListener('change', async () => {
+  const file = input.files[0];
+  if (!file) return;
+
+  const form = new FormData();
+  form.append('image', file);
+
+  btn.disabled = true; btn.textContent = 'Uploading…';
+  try {
+    const r = await fetch('/upload-image', { method: 'POST', body: form });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Upload failed');
+
+    // Insert Markdown image link at cursor
+    const start = desc.selectionStart || 0;
+    const end = desc.selectionEnd || 0;
+    const md = `![](${data.url})`;
+    desc.value = desc.value.slice(0, start) + md + desc.value.slice(end);
+    // Move cursor after inserted text
+    desc.selectionStart = desc.selectionEnd = start + md.length;
+    desc.focus();
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Insert image…';
+    input.value = '';
+  }
+});
+</script>
+{% endblock %}

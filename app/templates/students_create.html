@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Create a student</h2>
+<form method="post" class="card" style="max-width:640px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
+    <label>First name<br><input name="first_name" required></label>
+    <label>Last name<br><input name="last_name" required></label>
+  </div><br>
+  <label>Username (optional but recommended)<br><input name="username" placeholder="e.g. jbloggs23"></label><br>
+  <label>Email (optional — generated if empty)<br><input name="email" type="email" placeholder="student@example.com"></label><br>
+  <label>Password (leave blank to auto-generate)<br><input name="password" type="text" placeholder="auto"></label><br>
+  <div style="display:flex;gap:.5rem">
+    <button class="btn primary" type="submit">Create</button>
+    <a class="btn" href="/students">Cancel</a>
+  </div>
+</form>
+{% endblock %}

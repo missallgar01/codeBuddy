@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Rubric — {{ assignment.title }}</h2>
+<form method="post" class="card">
+  <table class="table">
+    <thead>
+      <tr><th>#</th><th>Key</th><th>Criterion</th><th>Max marks</th><th>Order</th></tr>
+    </thead>
+    <tbody id="rb">
+      {% for c in criteria %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td><input name="key[]" value="{{ c.key }}" required></td>
+        <td><input name="label[]" value="{{ c.label }}" required style="width: 100%"></td>
+        <td><input name="max_marks[]" type="number" step="0.5" min="0" value="{{ c.max_marks }}"></td>
+        <td><input name="order_index[]" type="number" value="{{ c.order_index }}"></td>
+      </tr>
+      {% endfor %}
+      {% if not criteria %}
+      <tr>
+        <td>1</td><td><input name="key[]" value="crit_1"></td>
+        <td><input name="label[]" value="Criterion 1"></td>
+        <td><input name="max_marks[]" type="number" step="0.5" min="0" value="1"></td>
+        <td><input name="order_index[]" type="number" value="0"></td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+  <div style="display:flex;gap:.5rem">
+    <button class="btn" type="button" onclick="addRow()">+ Add row</button>
+    <button class="btn primary" type="submit">Save rubric</button>
+    <a class="btn" href="/assignments/{{ assignment.id }}">← Back to assignment</a>
+  </div>
+</form>
+<script>
+function addRow(){
+  const rb = document.getElementById('rb');
+  const i = rb.children.length + 1;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${i}</td>
+    <td><input name="key[]" value="crit_${i}"></td>
+    <td><input name="label[]" value="Criterion ${i}" style="width:100%"></td>
+    <td><input name="max_marks[]" type="number" step="0.5" min="0" value="1"></td>
+    <td><input name="order_index[]" type="number" value="${i-1}"></td>`;
+  rb.appendChild(tr);
+}
+</script>
+{% endblock %}

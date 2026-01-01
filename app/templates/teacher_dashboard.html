@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block content %}
+<p><a class="btn" href="/teacher/students">👥 Manage students</a></p>
+
+<h2>Your classes</h2>
+<a class="btn" href="/classes/create">+ New class</a>
+<table class="table">
+  <tr><th>Name</th><th>Join code</th><th>Students</th><th>Assignments</th></tr>
+  {% for c in classes %}
+    <tr>
+      <td>{{ c.name }}</td>
+      <td><code>{{ c.code }}</code></td>
+      <td>{{ c.enrollments|length }}</td>
+      <td>{{ c.class_assignments|length }}</td>
+    </tr>
+  {% endfor %}
+</table>
+
+<h2>Your assignments</h2>
+<a class="btn" href="/assignments/create">+ New assignment</a>
+<table class="table">
+  <tr><th>Title</th><th>Actions</th></tr>
+  {% for a in assignments %}
+    <tr>
+      <td><a href="/assignments/{{a.id}}">{{ a.title }}</a></td>
+      <td>
+        <a href="/assignments/{{a.id}}/edit">Edit</a> ·
+        <a href="/assignments/{{a.id}}/rubric">Rubric</a> ·
+        <a href="/assignments/{{a.id}}/submissions">Submissions</a> ·
+        <form method="post" action="/assignments/{{a.id}}/delete"
+              style="display:inline" onsubmit="return confirm('Delete this assignment? This cannot be undone.');">
+          <button class="btn" type="submit">Delete</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+</table>
+{% endblock %}

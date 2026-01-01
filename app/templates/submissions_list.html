@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Submissions — {{ assignment.title }}</h2>
+<table class="table">
+  <thead>
+    <tr><th>When</th><th>Student</th><th>Auto</th><th>Rubric</th><th>Final</th><th>Action</th></tr>
+  </thead>
+  <tbody>
+    {% for s in submissions %}
+    <tr>
+      <td>{{ s.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+      <td>{{ s.student.name }} ({{ s.student.email }})</td>
+      <td>{{ (s.auto_score or 0) }}/{{ (s.auto_max or 0) }}</td>
+      <td>{{ (s.rubric_score or 0) }}/{{ (s.rubric_max or 0) }}</td>
+      <td><strong>{{ (s.final_score or 0) }}</strong>/{{ (s.final_max or 0) }}</td>
+      <td><a class="btn" href="/assignments/{{ assignment.id }}/submissions/{{ s.id }}">Grade</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<a class="btn" href="/assignments/{{ assignment.id }}">← Back to assignment</a>
+{% endblock %}

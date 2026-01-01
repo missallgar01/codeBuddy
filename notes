@@ -1,0 +1,8 @@
+# Stop containers and remove the named volumes (wipes DB)
+docker compose down -v
+
+# Rebuild and start fresh
+docker compose up -d --build
+
+# Create tables + seed admin & dummy student
+docker compose exec web python manage.py

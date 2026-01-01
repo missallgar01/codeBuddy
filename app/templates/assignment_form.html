@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>{{ 'Edit assignment' if mode == 'edit' else 'New assignment' }}</h2>
+
+<form method="post" class="card" enctype="multipart/form-data">
+  <label>Title<br>
+    <input name="title" required style="width:100%" value="{{ assignment.title if assignment else '' }}" />
+  </label><br>
+
+  <div style="display:flex; align-items:center; gap:.5rem; margin:.25rem 0;">
+    <strong>Task description</strong>
+    <input type="file" id="imgInput" accept="image/*" style="display:none" />
+    {% if current_user.role == 'teacher' %}
+    <button type="button" class="btn" id="insertImgBtn">Insert image…</button>
+    {% endif %}
+    <small style="color:#555">Paste images from clipboard; double-click to resize.</small>
+  </div>
+
+  <textarea id="desc" name="description" rows="8" style="width:100%">{{ assignment.description_md if assignment else '' }}</textarea><br>
+
+  <label>Starter code (shown on the right pane)<br>
+    <textarea name="starter_code" rows="10" style="width:100%">{{ assignment.starter_code if assignment else 'def solve(x):\n    return x' }}</textarea>
+  </label><br>
+
+  <label>Tests path (directory) — leave blank to use JSON mark scheme below<br>
+    <input name="tests_path" style="width:100%" value="{{ assignment.tests_path if assignment else '' }}" />
+  </label><br>
+
+  <label>Mark scheme (JSON) — used if tests_path empty<br>
+    <textarea name="mark_scheme_json" rows="10" style="width:100%">{{ assignment.mark_scheme_json if assignment else '{\n  "cases": [\n    {"function": "solve", "args": [1], "expected": 1, "marks": 1},\n    {"function": "solve", "args": [2], "expected": 4, "marks": 1}\n  ]\n}' }}</textarea>
+  </label><br>
+
+  <div style="display:flex; gap:.5rem;">
+    <button class="btn primary" type="submit">{{ 'Save changes' if mode == 'edit' else 'Create' }}</button>
+    {% if mode == 'edit' %}
+      <a class="btn" href="{{ url_for('main.assignment_detail', aid=assignment.id) }}">← Back to assignment</a>
+    {% endif %}
+  </div>
+</form>
+
+{% if current_user.role == 'teacher' %}
+<script>
+const btn = document.getElementById('insertImgBtn');
+const input = document.getElementById('imgInput');
+const desc = document.getElementById('desc');
+btn?.addEventListener('click', () => input.click());
+input?.addEventListener('change', async () => {
+  const file = input.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('image', file);
+  btn.disabled = true; btn.textContent = 'Uploading…';
+  try {
+    const r = await fetch('/upload-image', { method: 'POST', body: form });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Upload failed');
+    const html = `<img src="${data.url}" alt="" style="max-width:100%;height:auto;width:480px;">`;
+    const start = desc.selectionStart || 0;
+    const end = desc.selectionEnd || 0;
+    desc.value = desc.value.slice(0, start) + html + desc.value.slice(end);
+    desc.selectionStart = desc.selectionEnd = start + html.length;
+    desc.focus();
+  } catch (e) { alert(e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Insert image…'; input.value = ''; }
+});
+
+// Paste image from clipboard
+document.addEventListener('paste', async (e) => {
+  const items = e.clipboardData?.items || [];
+  for (const it of items) {
+    if (it.type && it.type.startsWith('image/')) {
+      const file = it.getAsFile();
+      if (!file) continue;
+      const form = new FormData();
+      form.append('image', file);
+      try {
+        const r = await fetch('/upload-image', { method: 'POST', body: form });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Upload failed');
+        const html = `<img src="${data.url}" alt="" style="max-width:100%;height:auto;width:480px;">`;
+        const start = desc.selectionStart || 0;
+        const end = desc.selectionEnd || 0;
+        desc.value = desc.value.slice(0, start) + html + desc.value.slice(end);
+        desc.selectionStart = desc.selectionEnd = start + html.length;
+        desc.focus();
+      } catch (e2) { alert(e2.message); }
+      e.preventDefault();
+      return;
+    }
+  }
+});
+
+// Resize: double-click near <img> tag to set style width
+desc.addEventListener('dblclick', () => {
+  const caret = desc.selectionStart || 0;
+  const text = desc.value;
+  const before = text.lastIndexOf('<img', caret);
+  const after  = text.indexOf('>', caret);
+  if (before !== -1 && after !== -1 && after > before) {
+    const width = prompt('Image width (e.g., 320px or 50%)', '480px');
+    if (!width) return;
+    let tag = text.slice(before, after+1);
+    if (tag.includes('style=')) {
+      tag = tag.replace(/style="([^"]*)"/, (m, s) => {
+        s = s.replace(/width:\s*[^;]+;?/g, '').trim();
+        return `style="${s ? s + '; ' : ''}max-width:100%;height:auto;width:${width};"`;
+      });
+    } else {
+      tag = tag.replace('<img', `<img style="max-width:100%;height:auto;width:${width};"`);
+    }
+    const newText = text.slice(0, before) + tag + text.slice(after+1);
+    desc.value = newText;
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,28 @@
+{
+  "cases": [
+    {
+      "function": "solve",
+      "args": [
+        0
+      ],
+      "expected": 0,
+      "marks": 1
+    },
+    {
+      "function": "solve",
+      "args": [
+        5
+      ],
+      "expected": 5,
+      "marks": 1
+    },
+    {
+      "function": "solve",
+      "args": [
+        10
+      ],
+      "expected": 10,
+      "marks": 1
+    }
+  ]
+}
