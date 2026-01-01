@@ -1,28 +1,43 @@
-# Flask Classroom — Plus
+# codeBuddy
 
-A self-hosted Python coding classroom with:
-- Teacher/Student roles, class invite codes
-- Assignment create/edit/delete, Markdown + image uploads (paste + resize)
-- Monaco editor with Run + Submit, student **Save Draft**
-- Automated tests (JSON mark scheme) with ✓/✗ table and totals
-- Teacher rubric criteria + feedback + final grade
-- Teacher can create student accounts (first/last/username), generate temp passwords, **export PDF** credentials
-- SQLite + Docker
-  
-## Quickstart
+A self-hosted classroom platform built with Flask that supports teacher and student roles, assignment workflows, automated testing and marking, and local or containerised deployment.
+
+## Overview
+codeBuddy is a web-based classroom system designed to support the teaching and learning of programming. It allows teachers to create assignments, invite students, manage submissions, and provide automated and manual feedback, all within a single application.
+
+The project focuses on real-world backend concerns such as authentication, role-based access, file uploads, data persistence, and maintainable application structure.
+
+## Key Features
+- Teacher and student roles with secure authentication
+- Assignment creation and submission workflows
+- Automated test execution and marking
+- Rubrics, feedback, and grading support
+- Invite tokens for controlled user onboarding
+- File upload handling with size limits
+- SQLite-backed persistence
+- Dockerised deployment for consistency
+
+## Tech Stack
+- Python
+- Flask
+- SQLite
+- HTML / CSS / JavaScript
+- Docker
+
+## Getting Started
+
+### Prerequisites
+- Python 3.10+
+- pip
+- (Optional) Docker
+
+### Local Setup
 ```bash
+git clone https://github.com/missallgar01/codeBuddy.git
+cd codeBuddy
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 cp .env.example .env
-docker compose up --build -d
-docker compose exec web python manage.py
-# open http://localhost:8000
-```
-**Docker DB path:** `DATABASE_URL=sqlite:////app/instance/classroom.db`
-
-## Default accounts
-- Admin Teacher (.env): `ADMIN_EMAIL` / `ADMIN_PASSWORD`
-- Dummy Student: `student@example.com` / `Stud3nt!123`
-
-## Notes
-- We use plain forms (no Flask-WTF). CSRF disabled via `.env`.
-- Image pasting inserts `<img ... style="width:480px;">`. Double-click inside the description box to change width (e.g. `320px` or `50%`).
+flask run
 
