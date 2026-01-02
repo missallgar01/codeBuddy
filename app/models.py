@@ -43,14 +43,14 @@ class Enrollment(db.Model):
 
 class Assignment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(200), nullable=False)
-    description_md = db.Column(db.Text, nullable=False)
-    starter_code = db.Column(db.Text, nullable=False)
-    tests_path = db.Column(db.String(200), nullable=True)
-    mark_scheme_json = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    owner_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+
+    # DB no longer stores details (JSON only)
+    owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     owner = db.relationship('User', backref='assignments')
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Keep relationships (these still use assignment_id)
     class_assignments = db.relationship('ClassAssignment', cascade="all, delete-orphan", backref='assignment', lazy='dynamic')
     submissions = db.relationship('Submission', cascade="all, delete-orphan", backref='assignment', lazy='dynamic')
     rubric_criteria = db.relationship('RubricCriterion', cascade="all, delete-orphan", backref='assignment', lazy='dynamic')

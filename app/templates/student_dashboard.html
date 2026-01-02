@@ -14,8 +14,13 @@
     <p>Assignments:</p>
     <ul>
       {% for ca in e.klass.class_assignments %}
-        <li><a href="/assignments/{{ ca.assignment.id }}">{{ ca.assignment.title }}</a></li>
-      {% endfor %}
+  {% set a = assignment_map.get(ca.assignment_id) %}
+  <li>
+    <a href="/assignments/{{ ca.assignment_id }}">
+      {{ a.title if a else "Assignment " ~ ca.assignment_id }}
+    </a>
+  </li>
+{% endfor %}
     </ul>
   </div>
 {% endfor %}

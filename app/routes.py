@@ -8,6 +8,9 @@ import bleach, secrets
 from werkzeug.utils import secure_filename
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
+import json
+from types import SimpleNamespace
+from .assignment_store import assignments_dir, load_assignment, save_assignment, delete_assignment
 
 from .models import db, User, Role, Class, Enrollment, Assignment, ClassAssignment, Submission, RubricCriterion, RubricGrade
 from .grading import grade_submission, grade_submission_detailed
@@ -16,6 +19,24 @@ main_bp = Blueprint('main', __name__)
 
 ALLOWED_TAGS = bleach.sanitizer.ALLOWED_TAGS.union({'p','img','h1','h2','h3','h4','h5','h6','pre','code','table','thead','tbody','tr','th','td'})
 ALLOWED_ATTRS = {**bleach.sanitizer.ALLOWED_ATTRIBUTES, 'img': ['src', 'alt', 'style']}
+
+
+def list_assignment_json_for_owner(owner_id: int) -> list[dict]:
+    out = []
+    d = assignments_dir()
+    for name in os.listdir(d):
+        if not (name.startswith("assignment_") and name.endswith(".json")):
+            continue
+        path = os.path.join(d, name)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("owner_id") == owner_id:
+                out.append(data)
+        except Exception:
+            continue
+    out.sort(key=lambda x: x.get("id", 0), reverse=True)
+    return out
 
 def _allowed_image(filename: str) -> bool:
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -32,9 +53,9 @@ def uploaded_file(filename):
 def upload_image():
     if current_user.role != Role.TEACHER:
         abort(403)
-    if "images" not in request.files:
+    if "image" not in request.files:
         return jsonify({"error": "No file part"}), 400
-    file = request.files["images"]
+    file = request.files["image"]
     if file.filename == "":
         return jsonify({"error": "No selected file"}), 400
     if not _allowed_image(file.filename):
@@ -51,16 +72,33 @@ def upload_image():
     url = url_for("main.uploaded_file", filename=final, _external=False)
     return jsonify({"url": url})
 
+
 @main_bp.route('/')
 @login_required
 def dashboard():
     if current_user.role == Role.TEACHER:
         classes = Class.query.filter_by(teacher_id=current_user.id).all()
-        assignments = Assignment.query.filter_by(owner_id=current_user.id).all()
+        assignments = list_assignment_json_for_owner(current_user.id)
+        assignments = [SimpleNamespace(**a) for a in assignments]
         return render_template('teacher_dashboard.html', classes=classes, assignments=assignments)
-    else:
-        enrollments = Enrollment.query.filter_by(student_id=current_user.id).all()
-        return render_template('student_dashboard.html', enrollments=enrollments)
+
+    # STUDENT DASHBOARD
+    enrollments = Enrollment.query.filter_by(student_id=current_user.id).all()
+
+    assignment_map = {}
+    for e in enrollments:
+        for ca in e.klass.class_assignments:
+            aid = ca.assignment_id
+            if aid not in assignment_map:
+                data = load_assignment(aid)
+                if data:
+                    assignment_map[aid] = SimpleNamespace(**data)
+
+    return render_template(
+        'student_dashboard.html',
+        enrollments=enrollments,
+        assignment_map=assignment_map
+    )
 
 @main_bp.route('/classes/create', methods=['GET','POST'])
 @login_required
@@ -93,90 +131,155 @@ def class_join():
             flash(f'Joined {klass.name}', 'success')
     return redirect(url_for('main.dashboard'))
 
-@main_bp.route('/assignments/create', methods=['GET','POST'])
+@main_bp.route("/assignment/new", methods=["GET", "POST"])
 @login_required
 def assignment_create():
     if current_user.role != Role.TEACHER:
         abort(403)
-    if request.method == 'POST':
-        title = request.form.get('title')
-        description = bleach.clean(request.form.get('description'), tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRS)
-        starter = request.form.get('starter_code')
-        tests_path = request.form.get('tests_path') or None
-        mark_scheme_json = request.form.get('mark_scheme_json') or None
-        a = Assignment(title=title, description_md=description, starter_code=starter,
-                       tests_path=tests_path, mark_scheme_json=mark_scheme_json, owner_id=current_user.id)
-        db.session.add(a)
-        db.session.commit()
-        flash('Assignment created', 'success')
-        return redirect(url_for('main.assignment_detail', aid=a.id))
-    return render_template('assignment_form.html', mode='create', assignment=None)
 
-@main_bp.route('/assignments/<int:aid>/edit', methods=['GET','POST'])
+    if request.method == "POST":
+        title = request.form.get("title")
+        description = bleach.clean(
+            request.form.get("description"),
+            tags=ALLOWED_TAGS,
+            attributes=ALLOWED_ATTRS
+        )
+        starter = request.form.get("starter_code")
+        tests_path = request.form.get("tests_path") or None
+        mark_scheme_json = request.form.get("mark_scheme_json") or None
+
+        a = Assignment(owner_id=current_user.id)
+        db.session.add(a)
+        db.session.commit()  # get a.id
+
+        assignment_data = {
+            "id": a.id,
+            "owner_id": current_user.id,
+            "title": title,
+            "description": description,
+            "starter_code": starter,
+            "tests_path": tests_path,
+            "mark_scheme": json.loads(mark_scheme_json) if mark_scheme_json else None
+        }
+        save_assignment(a.id, assignment_data)
+
+        flash("Assignment created", "success")
+        return redirect(url_for("assignment_create", aid=a.id))
+
+    return render_template("assignment_create.html", mode="create", assignment=None)
+
+
+@main_bp.route("/assignment/<int:aid>/edit", methods=["GET", "POST"])
 @login_required
 def assignment_edit(aid):
-    if current_user.role != Role.TEACHER:
+    db_a = Assignment.query.get_or_404(aid)
+    data = load_assignment(aid)
+    if not data:
+        abort(404)
+
+    if current_user.role != Role.TEACHER or data.get("owner_id") != current_user.id:
         abort(403)
-    a = Assignment.query.get_or_404(aid)
-    if a.owner_id != current_user.id:
-        abort(403)
+
+    a = SimpleNamespace(**data)  # for template attribute access
+
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
-        description = request.form.get('description', '')
+        description = bleach.clean(request.form.get('description', ''), tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRS)
         starter = request.form.get('starter_code', '')
         tests_path = request.form.get('tests_path') or None
         mark_scheme_json = request.form.get('mark_scheme_json') or None
+
         if not title:
             flash('Title is required.', 'danger')
-            return render_template('assignment_form.html', mode='edit', assignment=a)
-        description = bleach.clean(description, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRS)
-        a.title = title
-        a.description_md = description
-        a.starter_code = starter
-        a.tests_path = tests_path
-        a.mark_scheme_json = mark_scheme_json
-        db.session.commit()
-        flash('Assignment updated.', 'success')
-        return redirect(url_for('main.assignment_detail', aid=a.id))
-    return render_template('assignment_form.html', mode='edit', assignment=a)
+            return render_template('assignment_edit.html', mode='edit', assignment=a)
 
-@main_bp.route('/assignments/<int:aid>/delete', methods=['POST'])
+        updated = {
+            "id": aid,
+            "owner_id": data.get("owner_id"),
+            "title": title,
+            "description": description,
+            "starter_code": starter,
+            "tests_path": tests_path,
+            "mark_scheme": json.loads(mark_scheme_json) if mark_scheme_json else None
+        }
+        save_assignment(aid, updated)
+
+        flash('Assignment updated.', 'success')
+        return redirect(url_for('main.assignment_detail', aid=aid))
+
+    return render_template('assignment_create.html', mode='edit', assignment=a)
+
+
+
+
+
+@main_bp.route("/assignment/<int:aid>/delete", methods=["POST"])
 @login_required
 def assignment_delete(aid):
-    if current_user.role != Role.TEACHER:
-        abort(403)
     a = Assignment.query.get_or_404(aid)
-    if a.owner_id != current_user.id:
+    data = load_assignment(aid)
+    if not data:
+        abort(404)
+    if current_user.role != Role.TEACHER or data.get("owner_id") != current_user.id:
         abort(403)
+
+    # delete JSON first
+    delete_assignment(aid)
+
     db.session.delete(a)
     db.session.commit()
     flash('Assignment deleted.', 'info')
     return redirect(url_for('main.dashboard'))
 
+
 @main_bp.route('/assignments/<int:aid>', methods=['GET','POST'])
 @login_required
 def assignment_detail(aid):
-    a = Assignment.query.get_or_404(aid)
+    # DB only ensures assignment exists for relationships
+    db_a = Assignment.query.get_or_404(aid)
+
+    data = load_assignment(aid)
+    if not data:
+        abort(404)
+
+    a = SimpleNamespace(**data)  # templates can use a.title, a.description, etc.
+
     if current_user.role == Role.STUDENT:
         class_ids = [en.klass.id for en in current_user.enrollments]
-        allowed = ClassAssignment.query.filter(ClassAssignment.assignment_id==aid, ClassAssignment.class_id.in_(class_ids)).first()
+        allowed = ClassAssignment.query.filter(
+            ClassAssignment.assignment_id == aid,
+            ClassAssignment.class_id.in_(class_ids)
+        ).first()
         if not allowed:
             abort(403)
+
+    mark_scheme_json = json.dumps(data.get("mark_scheme") or {"cases": []})
+
     if request.method == 'POST' and current_user.role == Role.STUDENT:
         code = request.form.get('code')
-        rows, total, max_total, passed = grade_submission_detailed(code, a.mark_scheme_json or '{"cases": []}')
-        sub = Submission(assignment_id=aid, student_id=current_user.id, code=code,
-                         score=total, max_score=max_total, feedback="",
-                         passed=passed, is_draft=False, auto_score=total, auto_max=max_total)
+        rows, total, max_total, passed = grade_submission_detailed(code, mark_scheme_json)
+
+        sub = Submission(
+            assignment_id=aid,
+            student_id=current_user.id,
+            code=code,
+            score=total,
+            max_score=max_total,
+            feedback="",
+            passed=passed,
+            is_draft=False,
+            auto_score=total,
+            auto_max=max_total
+        )
         db.session.add(sub)
         db.session.commit()
         flash(f"Submitted. Score: {total}/{max_total}", 'info')
         return redirect(url_for('main.assignment_detail', aid=aid))
-    description_html = markdown(a.description_md)
 
-    last_rows = []
-    last_total = 0.0
-    last_max = 0.0
+    description_html = markdown(a.description)
+
+    # last submission preview grading (use JSON mark_scheme)
+    last_rows, last_total, last_max = [], 0.0, 0.0
     last_rubric_rows, last_rubric_total, last_rubric_max = [], 0.0, 0.0
 
     if current_user.role == Role.STUDENT:
@@ -184,10 +287,10 @@ def assignment_detail(aid):
                .filter_by(assignment_id=aid, student_id=current_user.id)
                .order_by(Submission.created_at.desc())
                .first())
-        if sub and a.mark_scheme_json:
-            last_rows, last_total, last_max, _ = grade_submission_detailed(sub.code, a.mark_scheme_json)
         if sub:
-            crits = RubricCriterion.query.filter_by(assignment_id=a.id).order_by(RubricCriterion.order_index).all()
+            last_rows, last_total, last_max, _ = grade_submission_detailed(sub.code, mark_scheme_json)
+
+            crits = RubricCriterion.query.filter_by(assignment_id=aid).order_by(RubricCriterion.order_index).all()
             gmap = {g.criterion_id: g.awarded for g in RubricGrade.query.filter_by(submission_id=sub.id).all()}
             for c in crits:
                 aw = float(gmap.get(c.id, 0.0))
@@ -195,13 +298,15 @@ def assignment_detail(aid):
                 last_rubric_total += aw
                 last_rubric_max += float(c.max_marks)
 
-    return render_template('assignment_detail.html',
-                           assignment=a,
-                           description_html=description_html,
-                           last_rows=last_rows, last_total=last_total, last_max=last_max,
-                           last_rubric_rows=last_rubric_rows,
-                           last_rubric_total=last_rubric_total,
-                           last_rubric_max=last_rubric_max)
+    return render_template(
+        'assignment_detail.html',
+        assignment=a,
+        description_html=description_html,
+        last_rows=last_rows, last_total=last_total, last_max=last_max,
+        last_rubric_rows=last_rubric_rows,
+        last_rubric_total=last_rubric_total,
+        last_rubric_max=last_rubric_max
+    )
 
 @main_bp.route('/assignments/<int:aid>/assign', methods=['POST'])
 @login_required
@@ -285,8 +390,16 @@ def rubric_edit(aid):
         db.session.commit()
         flash('Rubric updated.', 'success')
         return redirect(url_for('main.rubric_edit', aid=a.id))
+
     criteria = RubricCriterion.query.filter_by(assignment_id=a.id).order_by(RubricCriterion.order_index).all()
-    return render_template('rubric_edit.html', assignment=a, criteria=criteria)
+
+    data = load_assignment(aid)
+    if not data:
+        abort(404)
+    assignment = SimpleNamespace(**data)
+
+    criteria = RubricCriterion.query.filter_by(assignment_id=aid).order_by(RubricCriterion.order_index).all()
+    return render_template('rubric_edit.html', assignment=assignment, criteria=criteria)
 
 @main_bp.route('/assignments/<int:aid>/submissions')
 @login_required
@@ -297,50 +410,103 @@ def submissions_list(aid):
     if a.owner_id != current_user.id:
         abort(403)
     subs = (Submission.query.filter_by(assignment_id=aid).order_by(Submission.created_at.desc()).all())
-    return render_template('submissions_list.html', assignment=a, submissions=subs)
+
+    data = load_assignment(aid)
+    if not data:
+        abort(404)
+    assignment = SimpleNamespace(**data)
+
+    return render_template('submissions_list.html', assignment=assignment, submissions=subs)
 
 @main_bp.route('/assignments/<int:aid>/submissions/<int:sid>', methods=['GET','POST'])
 @login_required
 def submission_grade(aid, sid):
     if current_user.role != Role.TEACHER:
         abort(403)
-    a = Assignment.query.get_or_404(aid)
-    if a.owner_id != current_user.id:
+
+    # DB is index only: existence + ownership
+    a_index = Assignment.query.get_or_404(aid)
+    if a_index.owner_id != current_user.id:
         abort(403)
+
     sub = Submission.query.get_or_404(sid)
-    rows, auto_total, auto_max, _ = grade_submission_detailed(sub.code, a.mark_scheme_json or '{"cases": []}')
+
+    # Load assignment details from JSON only
+    data = load_assignment(aid)
+    if not data:
+        abort(404)
+
+    # Template-friendly "assignment" object (attribute access)
+    assignment = SimpleNamespace(**data)
+
+    # Auto-grade using JSON mark scheme
+    mark_scheme_json = json.dumps(data.get("mark_scheme") or {"cases": []})
+    rows, auto_total, auto_max, _ = grade_submission_detailed(sub.code, mark_scheme_json)
+
     sub.auto_score = auto_total
     sub.auto_max = auto_max
-    crits = RubricCriterion.query.filter_by(assignment_id=a.id).order_by(RubricCriterion.order_index).all()
+
+    # Rubric still lives in DB (by assignment_id)
+    crits = (RubricCriterion.query
+             .filter_by(assignment_id=aid)
+             .order_by(RubricCriterion.order_index)
+             .all())
+
     if request.method == 'POST':
         awarded_by_id = {}
         for c in crits:
             try:
-                awarded_by_id[c.id] = max(0.0, min(c.max_marks, float(request.form.get(f"crit_{c.id}", "0"))))
+                v = float(request.form.get(f"crit_{c.id}", "0"))
             except Exception:
-                awarded_by_id[c.id] = 0.0
-        existing = { (g.submission_id, g.criterion_id): g for g in RubricGrade.query.filter_by(submission_id=sub.id).all() }
+                v = 0.0
+            awarded_by_id[c.id] = max(0.0, min(float(c.max_marks), v))
+
+        existing = {
+            g.criterion_id: g
+            for g in RubricGrade.query.filter_by(submission_id=sub.id).all()
+        }
+
         for c in crits:
-            key = (sub.id, c.id)
-            g = existing.get(key)
+            g = existing.get(c.id)
             if not g:
-                g = RubricGrade(submission_id=sub.id, criterion_id=c.id, awarded=awarded_by_id[c.id])
+                g = RubricGrade(
+                    submission_id=sub.id,
+                    criterion_id=c.id,
+                    awarded=awarded_by_id[c.id]
+                )
                 db.session.add(g)
             else:
                 g.awarded = awarded_by_id[c.id]
+
         sub.teacher_feedback = request.form.get('teacher_feedback', '').strip()
+
         rubric_total = sum(awarded_by_id.values())
-        rubric_max = sum(c.max_marks for c in crits)
+        rubric_max = sum(float(c.max_marks) for c in crits)
+
         sub.rubric_score = rubric_total
         sub.rubric_max = rubric_max
         sub.final_score = (sub.rubric_score or 0.0) + (sub.auto_score or 0.0)
         sub.final_max = (sub.rubric_max or 0.0) + (sub.auto_max or 0.0)
+
         db.session.commit()
         flash('Marks and feedback saved.', 'success')
-        return redirect(url_for('main.submissions_list', aid=a.id))
-    awarded_map = {g.criterion_id: g.awarded for g in RubricGrade.query.filter_by(submission_id=sub.id).all()}
-    return render_template('submission_grade.html', assignment=a, sub=sub, criteria=crits, awarded_map=awarded_map, auto_rows=rows, auto_total=auto_total, auto_max=auto_max)
+        return redirect(url_for('main.submissions_list', aid=aid))
 
+    awarded_map = {
+        g.criterion_id: g.awarded
+        for g in RubricGrade.query.filter_by(submission_id=sub.id).all()
+    }
+
+    return render_template(
+        'submission_grade.html',
+        assignment=assignment,  # JSON-backed
+        sub=sub,
+        criteria=crits,
+        awarded_map=awarded_map,
+        auto_rows=rows,
+        auto_total=auto_total,
+        auto_max=auto_max
+    )
 # Teacher manage students
 @main_bp.route('/teacher/students', methods=['GET','POST'])
 @login_required
@@ -403,3 +569,30 @@ def student_credentials_pdf(uid):
     c.showPage(); c.save(); buf.seek(0)
     filename = f"credentials_{u.username or u.id}.pdf"
     return send_file(buf, mimetype="application/pdf", as_attachment=True, download_name=filename)
+
+from types import SimpleNamespace
+from .assignment_store import load_assignment
+
+@main_bp.route('/student/dashboard')
+@login_required
+def student_dashboard():
+    if current_user.role != Role.STUDENT:
+        abort(403)
+
+    enrollments = current_user.enrollments  # or your existing query
+
+    # Build a lookup of assignment_id -> JSON-backed assignment
+    assignment_map = {}
+    for e in enrollments:
+        for ca in e.klass.class_assignments:
+            aid = ca.assignment_id
+            if aid not in assignment_map:
+                data = load_assignment(aid)
+                if data:
+                    assignment_map[aid] = SimpleNamespace(**data)
+
+    return render_template(
+        "student_dashboard.html",
+        enrollments=enrollments,
+        assignment_map=assignment_map
+    )

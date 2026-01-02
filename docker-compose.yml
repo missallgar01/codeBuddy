@@ -3,16 +3,24 @@ services:
     build: .
     ports:
       - "8000:8000"
+
     env_file:
       - .env
+
     volumes:
       - ./:/app:delegated
       - instance-data:/app/instance
+
     tmpfs:
       - /tmp
+
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+
+    # IMPORTANT: run init + gunicorn
+    command: sh -c "python manage.py && gunicorn --bind 0.0.0.0:8000 wsgi:app"
+
 volumes:
   instance-data:

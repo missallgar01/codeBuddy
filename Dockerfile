@@ -25,5 +25,6 @@ USER appuser
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_APP=wsgi.py
 
+
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "wsgi:app"]
