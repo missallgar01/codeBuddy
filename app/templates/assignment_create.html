@@ -56,7 +56,7 @@ input.addEventListener('change', async () => {
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'Upload failed');
 
-    // Insert Markdown image link at cursor
+    // Insert Markdown images link at cursor
     const start = desc.selectionStart || 0;
     const end = desc.selectionEnd || 0;
     const md = `![](${data.url})`;

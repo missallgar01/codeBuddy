@@ -64,7 +64,7 @@ input?.addEventListener('change', async () => {
   finally { btn.disabled = false; btn.textContent = 'Insert image…'; input.value = ''; }
 });
 
-// Paste image from clipboard
+// Paste images from clipboard
 document.addEventListener('paste', async (e) => {
   const items = e.clipboardData?.items || [];
   for (const it of items) {

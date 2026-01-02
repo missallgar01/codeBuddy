@@ -32,9 +32,9 @@ def uploaded_file(filename):
 def upload_image():
     if current_user.role != Role.TEACHER:
         abort(403)
-    if "image" not in request.files:
+    if "images" not in request.files:
         return jsonify({"error": "No file part"}), 400
-    file = request.files["image"]
+    file = request.files["images"]
     if file.filename == "":
         return jsonify({"error": "No selected file"}), 400
     if not _allowed_image(file.filename):

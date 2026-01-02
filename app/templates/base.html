@@ -3,12 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flask Classroom</title>
-  <link rel="stylesheet" href="/static/style.css" />
+  <title>codeBuddy</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+  <main>
+<header class="page-header">
+<div class="page-title">
+    <h1>Welcome to codeBuddy</h1>
+    <p class="subtitle">Your place to practice python coding - Edexcel exam style questions</p>
+  </div>
+<img src="{{ url_for('static', filename='images/logo.svg') }}" alt="codeBuddy logo">
+</header>
+
   <div class="nav">
-    <div><a href="/" style="color:white;text-decoration:none">Flask Classroom</a></div>
+    <div><a href="/" style="color:white;text-decoration:none">Classroom</a></div>
     <div style="margin-left:auto"><a href="/logout" style="color:white;">Logout</a></div>
   </div>
   <div class="container">
@@ -21,5 +30,6 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </div>
+      </main>
 </body>
 </html>

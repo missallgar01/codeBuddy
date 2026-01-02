@@ -1,9 +1,17 @@
 <!doctype html>
 <html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="stylesheet" href="/static/style.css" />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 <title>Register</title></head>
+
+</header>
 <body>
-  <div class="container">
+  <main>
+      <header class="page-header">
+<div class="page-title">
+    <h1>Welcome to codeBuddy</h1>
+    <p class="subtitle">Your place to practice python coding - Edexcel exam style questions</p>
+  </div>
+<img src="{{ url_for('static', filename='images/logo.svg') }}" alt="codeBuddy logo">
     <h1>Create your account</h1>
     <form method="post" class="card" style="max-width:520px">
       <label>Full name<br><input name="name" required style="width:100%" /></label><br>
@@ -14,5 +22,9 @@
       <p style="font-size:.9rem;color:#444;margin-top:.5rem">By default, new accounts are student accounts. Teacher accounts need an invite token.</p>
     </form>
     <p style="margin-top:1rem">Already have an account? <a href="/login">Sign in</a></p>
-  </div>
+
+    <footer>
+       &copy; 2025 codeBuddy
+  </footer>
+  </main>
 </body></html>
