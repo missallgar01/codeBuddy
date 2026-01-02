@@ -1,4 +1,8 @@
 # codeBuddy
+⚠️ Project Status: In active development
+
+This project is under active development. Core functionality is implemented, with ongoing work on additional features, testing, and documentation.
+
 
 A self-hosted classroom platform built with Flask that supports teacher and student roles, assignment workflows, automated testing and marking, and local or containerised deployment.
 
