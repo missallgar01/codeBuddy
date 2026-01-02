@@ -6,3 +6,5 @@ docker compose up -d --build
 
 # Create tables + seed admin & dummy student
 docker compose exec web python manage.py
+
+
